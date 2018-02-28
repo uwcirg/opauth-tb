@@ -1,0 +1,23 @@
+{
+	"name": "opauth/truenth",
+	"description": "Truenth authentication strategy for Opauth",
+	"keywords": ["authentication","auth","truenth"],
+	"homepage": "http://opauth.org",
+	"license": "MIT",
+	"authors": [
+		{
+			"name": "Paul Bugni",
+			"email": "help@cirg.washingtion.edu",
+			"homepage": "http://cirg.washington.edu"
+		}
+	],
+	"require": {
+		"php": ">=5.2.0",
+		"opauth/opauth": ">=0.4.0"
+	},
+	"autoload": {
+		"psr-0": {
+			"": "."
+		}
+	}
+}
