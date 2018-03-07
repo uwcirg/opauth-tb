@@ -24,7 +24,7 @@ class TruenthStrategy extends OpauthStrategy{
      * Compulsory config keys, listed as unassociative arrays
      */
     public $expects = array('authorize_url', 'access_token_url',
-            'base_url', 'client_id', 'client_secret');
+            'base_url', 'client_id');
 
     /**
      * Optional config keys, without predefining any default values.
@@ -46,7 +46,7 @@ class TruenthStrategy extends OpauthStrategy{
      * Auth request
      */
     public function request(){
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), just entered');
+        CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), just entered. Final Try Hi!!');
 
         $url = $this->strategy['authorize_url'];
         $params = array(
@@ -56,14 +56,14 @@ class TruenthStrategy extends OpauthStrategy{
             'response_type' => 'code',
             'scope' => $this->strategy['scope']
         );
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(); url: ' . $url . '; params for strategy: ' . print_r($params, true));
+        CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(); url: ' . $url . '; params for strategy: ' . print_r($params, true));
 
         foreach ($this->optionals as $key){
             if (!empty($this->strategy[$key])) $params[$key] = $this->strategy[$key];
         }
 
         $this->clientGet($url, $params);
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), done');
+        CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), done');
     }
 
     /**
@@ -93,7 +93,8 @@ class TruenthStrategy extends OpauthStrategy{
      * Internal callback, after OAuth
      */
     public function oauth2callback(){
-        // CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), just entered');
+	CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), just entered callback method!');
+	CakeLog::write(LOG_DEBUG, print_r($_GET, true));
         if (array_key_exists('code', $_GET) && !empty($_GET['code'])){
             $code = $_GET['code'];
             $url = $this->strategy['access_token_url'];
@@ -105,36 +106,41 @@ class TruenthStrategy extends OpauthStrategy{
                 'grant_type' => 'authorization_code'
             );
 
-            set_error_handler(array($this, "serverPostHandler"), E_WARNING);
+	    CakeLog::write(LOG_DEBUG, print_r($params, true));
+	    CakeLog::write(LOG_DEBUG, print_r($url, true));
+	    set_error_handler(array($this, "serverPostHandler"), E_WARNING);
             $response = $this->serverPost($url, $params, null, $headers);
             restore_error_handler();
-            //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), response serverPost:' . print_r($response, true));
+            CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), response serverPost:' . print_r($response, true));
 
             $results = json_decode($response);
 
-            //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), results from json_decode(response):' . print_r($results, true));
+            CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), results from json_decode(response):' . print_r($results, true));
 
             if (!empty($results) && !empty($results->access_token)){
-                //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), !empty($results) && !empty($results->access_token)');
-                CakeSession::write('OPAUTH_ACCESS_TOKEN', $results->access_token);
-                $userinfo = $this->userinfo($results->access_token);
-                //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), userinfo:' . print_r($userinfo, true));
+                CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), !empty($results) && !empty($results->access_token)');
+		CakeSession::write('OPAUTH_ACCESS_TOKEN', $results->access_token);
+
+		CakeLog::write(LOG_DEBUG, "AHHHHHH!");
+		CakeLog::write(LOG_DEBUG, print_r($results, true));
+
+#                CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), userinfo:' . print_r($userinfo, true));
 
                 $this->auth = array(
-                    'uid' => $userinfo['id'],
+                    'uid' => $results->user_id,
                     'info' => array(),
                     'credentials' => array(
                         'token' => $results->access_token,
                         'expires' => date('c', time() + $results->expires_in)
                     ),
-                    'raw' => $userinfo
+                    'raw' => array()
                 );
 
                 if (!empty($results->refresh_token))
                 {
                     $this->auth['credentials']['refresh_token'] = $results->refresh_token;
                 }
-
+		CakeLog::write(LOG_DEBUG, print_r($this->auth, true));
                 $this->callback();
             }
             else{
@@ -146,7 +152,7 @@ class TruenthStrategy extends OpauthStrategy{
                         'headers' => $headers
                     )
                 );
-
+		CakeLog::write(LOG_DEBUG, print_r($error, true));
                 $this->errorCallback($error);
             }
         }
@@ -157,8 +163,8 @@ class TruenthStrategy extends OpauthStrategy{
             );
 
             $this->errorCallback($error);
-        }
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), done');
+	}
+        CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), done');
     }// public function oauth2callback(){
 
     /**
@@ -195,154 +201,6 @@ class TruenthStrategy extends OpauthStrategy{
         //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(); done.');
     }// public function eventcallback
 
-    /**
-     * Queries Truenth API for user info
-     *
-     * @param string $access_token
-     * @return array Parsed JSON results
-     */
-    private function userinfo($access_token){
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), just entered');
-        $userinfo = $this->serverGet($this->strategy['base_url'] . 'me', array('access_token' => $access_token), null, $headers); // 'me' from flask; google uses this naming convention, as do others.
-        if (!empty($userinfo)){
-            return $this->recursiveGetObjectVars(json_decode($userinfo));
-        }
-        else{
-            $error = array(
-                'code' => 'userinfo_error',
-                'message' => 'Failed when attempting to query for user information',
-                'raw' => array(
-                    'response' => $userinfo,
-                    'headers' => $headers
-                )
-            );
-
-            $this->errorCallback($error);
-        }
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), done');
-    }
-
-    /**
-     * Queries Truenth demographics API
-     *
-     * @return JSON results
-    public function demographicsInfo(){
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), just entered');
-
-        $access_token = CakeSession::read('OPAUTH_ACCESS_TOKEN');
-
-        $userinfo = $this->serverGet($this->strategy['base_url'] . 'demographics', array('access_token' => $access_token), null, $headers);
-        if (!empty($userinfo)){
-            return $userinfo;
-        }
-        else{
-            $error = array(
-                'code' => 'userinfo_error',
-                'message' => 'Failed when attempting to query demographics API',
-                'raw' => array(
-                    'response' => $userinfo,
-                    'headers' => $headers
-                )
-            );
-
-            $this->errorCallback($error);
-        }
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), done');
-    }
-     */
-
-    /**
-     * Queries Truenth demographics API
-     * @param $apiName eg 'demographics' | 'patient/123/procedure'
-     * @return JSON results
-     */
-    public function coreData($apiName){
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . "($apiName)");
-
-        $access_token = CakeSession::read('OPAUTH_ACCESS_TOKEN');
-
-        $userinfo = $this->serverGet($this->strategy['base_url'] . $apiName, array('access_token' => $access_token), null, $headers);
-        if (!empty($userinfo)){
-            return $userinfo;
-        }
-        else{
-            $error = array(
-                'code' => 'userinfo_error',
-                'message' => "Failed when attempting to query $apiName API",
-                'raw' => array(
-                    'response' => $userinfo,
-                    'headers' => $headers
-                )
-            );
-
-            $this->errorCallback($error);
-        }
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(), done');
-    }
-
-    /**
-     * Queries Truenth settings API
-     * @param $settingName eg 'LR_ORIGIN'
-     * @return JSON results
-     */
-    public function get_settings($settingName) {
-        $access_token = CakeSession::read('OPAUTH_ACCESS_TOKEN');
-        $url = array(
-            $this->strategy['base_url'],
-            'settings/',
-            $settingName
-        );
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(...), here\'s request for serverGet: ' . print_r($url, true));
-        $response = @$this->serverGet(
-            implode($url),
-            array('access_token' => $access_token),
-            null,
-            $headers
-        );
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(...), here\'s response from serverGet: ' . print_r($response, true));
-        return json_decode($response, true);
-    }
-
-    public function get_questionniare_responses($user_id, $instrument_code=null){
-        $access_token = CakeSession::read('OPAUTH_ACCESS_TOKEN');
-
-        $url = array(
-            $this->strategy['base_url'],
-            'patient/',
-            $user_id,
-            '/assessment',
-        );
-
-        if ($instrument_code){
-            array_push($url, '/', $instrument_code);
-        }
-
-
-        $response = @$this->serverGet(
-            implode($url),
-            array('access_token' => $access_token),
-            null,
-            $headers
-        );
-
-        if ($response === false){
-            $error = array(
-                'message' => "Error retrieving questionnaire ($instrument_code) response data for user $user_id",
-                'code' => $response,
-                'raw' => array(
-                    'response' => $response,
-                    'headers' => $headers,
-                    'user_id' => $user_id,
-                    'instrument_code' => $instrument_code,
-                ),
-            );
-            CakeLog::write(LOG_ERROR, $error['message']);
-            throw new InternalErrorException($error['message']);
-            return false;
-        }
-
-        return json_decode($response, true);
-    }
 
     /**
      * Convenience method for serverPost()
@@ -439,125 +297,4 @@ class TruenthStrategy extends OpauthStrategy{
         }
         return $error;
     }
-
-    /**
-     *
-     */
-    public function add_questionnaire_response($user_id, $data){
-
-        $url = implode(array(
-                $this->strategy['base_url'],
-                'patient', '/',
-                $user_id, '/',
-                'assessment',
-            ));
-
-        return $this->post($url, $data);
-    }
-    public function update_questionnaire_response($user_id, $data){
-        $url = implode(array(
-                $this->strategy['base_url'],
-                'patient', '/',
-                $user_id, '/',
-                'assessment',
-            ));
-
-        return $this->put($url, $data);
-    }
-
-    /**
-     * PUT Truenth status for user/intervention dyad
-     */
-    public function put_user_intervention($data){
-        CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(); data:' . print_r($data, true));
-
-        if (strlen(SERVICE_TOKEN) == 0) {
-            CakeLog::write(LOG_ERROR, "Error in " . __FUNCTION__ . ": SERVICE_TOKEN is undefined.");
-            return;
-        }
-
-        $service_token = SERVICE_TOKEN;
-
-        $interventionId = 'self_management';
-        if (strpos(INSTANCE_ID, 'p3p') !== false)
-            $interventionId = 'decision_support_p3p';
-
-        $url = $this->strategy['base_url'] . "intervention/$interventionId";
-        // https://truenth-dev.cirg.washington.edu/api/intervention/decision_support_p3p
-
-        return $this->put($url, $data, $service_token);
-    }
-
-    /**
-     * 
-     */
-    public function post_report($user_id, $filePath){
-
-        $access_token = CakeSession::read('OPAUTH_ACCESS_TOKEN');
-/*
-        if (strlen(SERVICE_TOKEN) == 0) {
-            CakeLog::write(LOG_ERROR, "Error in " . __FUNCTION__ . ": SERVICE_TOKEN is undefined.");
-            return;
-        }
-
-        $service_token = SERVICE_TOKEN;
- */
-        $url = implode(array(
-                $this->strategy['base_url'],
-                'user', '/',
-                $user_id, '/',
-                'patient_report',
-            ));
-
-        $fileSize = filesize($filePath);
-
-        if(!file_exists($filePath)) {
-                $out['status'] = 'error';
-                    $out['message'] = 'File not found.';
-                    exit(json_encode($out));
-        }
-
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $finfo = finfo_file($finfo, $filePath);
-
-        //using curl because, need to send the POST as multipart:form/data and include the attachment with a parameter name and a file name in the content disposition (these are all things that a browser does automatically, and curl -F emulates). Just sending the raw PDF data without those ingredients doesn't work.
-
-        $cFile = new CURLFile($filePath, $finfo, basename($filePath));
-        $data = array( "filedata" => $cFile, "filename" => $cFile->postname);
-
-        $cURL = curl_init($url);
-        curl_setopt($cURL, CURLOPT_RETURNTRANSFER, true);
-
-        // This is not mandatory, but is a good practice.
-        curl_setopt($cURL, CURLOPT_HTTPHEADER,
-            array('Content-Type: multipart/form-data',
-                    "Authorization: Bearer $access_token"
-                    //"Authorization: Bearer $service_token"
-        ));
-        curl_setopt($cURL, CURLOPT_POST, true);
-        curl_setopt($cURL, CURLOPT_POSTFIELDS, $data);
-        curl_setopt($cURL, CURLOPT_INFILESIZE, $fileSize);
-        curl_setopt($cURL, CURLINFO_HEADER_OUT, true);
-
-        $response = curl_exec($cURL);
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(); response from server:' . print_r($response, true));
-        $httpcode = curl_getinfo($cURL, CURLINFO_HTTP_CODE);
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '(); response code from server:' . print_r($httpcode, true));
-        $header_out = curl_getinfo($cURL, CURLINFO_HEADER_OUT);
-        //CakeLog::write(LOG_DEBUG, __CLASS__ . '.' . __FUNCTION__ . '();  CURLINFO_HEADER_OUT:' . print_r($header_out, true));
-        if ($httpcode != 200){
-            $error = array(
-                'code' => 'pro_report_error',
-                'message' => 'Failed when attempting to store PRO report',
-                'raw' => array(
-                    'response' => $response,
-                    'headers' => curl_getinfo($cURL, CURLINFO_HEADER_OUT)
-                )
-            );
-            CakeLog::write(LOG_ERROR, __CLASS__ . '.' . __FUNCTION__ . '(); error:' . print_r($error, true));
-            $this->errorCallback($error);
-        }
-        curl_close($cURL);
-    }// public function post_report($user_id, $filePath){
-
 }
